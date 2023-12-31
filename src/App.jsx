@@ -1,14 +1,23 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
-import { FaPlus, FaPencilAlt, FaTrash } from 'react-icons/fa'
+import { FaPlus, FaPencilAlt } from 'react-icons/fa'
+import { db } from './firebase';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import TodoList from './components/TodoList';
 
 function App() {
 
-  const [todos, setTodos] = useState([
-    {id: 1, todo: 'Learn React'}
-  ]);
+  const [todos, setTodos] = useState([]);
   const [input, setInput] = useState('');
   const [editIndex, setEditIndex] = useState(-1);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'todos'), (snapshot) => {
+      setTodos(snapshot.docs.map((doc) => ({ id: doc.id, todo: doc.data().todo })));
+    });
+  
+    return () => unsubscribe();
+  }, []);
 
   const setEdit = (index) => {
     setInput(todos[index].todo);
@@ -18,7 +27,8 @@ function App() {
   const addTodo = async () => {
     try {
       if(input.trim() !== '') {
-        setTodos([...todos, {id: new Date(), todo: input}]);
+        //setTodos([...todos, {id: new Date(), todo: input}]);
+        await addDoc(collection(db, 'todos'), { todo: input });
         setInput('')
       }
     } catch (error) {
@@ -29,9 +39,8 @@ function App() {
   const updateTodo = async () => {
     try {
       if(input.trim() !== '') {
-        const updatedTodos = [...todos];
-        updatedTodos[editIndex].todo = input;
-        setTodos(updatedTodos);
+       const todoDocRef = doc(db, 'todos', todos[editIndex].id);
+       await updateDoc(todoDocRef, { todo: input });
         setEditIndex(-1);
         setInput('');
       }
@@ -41,8 +50,11 @@ function App() {
   }
 
   const removeTodo = async (id) => {
-    let filteredTodos = todos.filter((todo) => todo.id !== id);
-    setTodos(filteredTodos);
+    try {
+      await deleteDoc(doc(db, 'todos', id));
+    } catch (error) {
+      console.error(error.message);
+    }
   }
   
 
@@ -65,23 +77,7 @@ function App() {
      </div>
 
      {
-      todos.length > 0 && (
-        <div className='bg-gray-100 p-4 rounded shadow-md w-full max-w-lg lg:w-1/4'>
-      <ul>
-        {todos.map((todo, index) => (
-          <li key={index} className='flex items-center justify-between bg-white p-3 shadow-md mb-3'>
-          <span className='text-lg'>{todo.todo}</span>
-          <div>
-          <button onClick={() => setEdit(index)} className='mr-2 p-2 bg-gradient-to-r from-gray-400 to-gray-600 text-white rounded hover_from-gray-500 hover:to-gray-700'>
-            <FaPencilAlt/></button>
-          <button onClick={() => removeTodo(todo.id)} className='mr-2 p-2 bg-gradient-to-r from-red-400 to-red-600 text-white rounded hover_from-red-500 hover:to-red-700'>
-            <FaTrash/></button>
-          </div>
-        </li>
-        ))}
-      </ul>
-     </div>
-      )
+      todos.length > 0 && <TodoList todos={todos} setEdit={setEdit} removeTodo={removeTodo} />
      }
    </div>
   )
